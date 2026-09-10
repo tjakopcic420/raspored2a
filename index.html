@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raspored 2.a — uživo</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card-bg: #ffffff;
+    --accent: #2b2b2b;
+    --now-color: #1e8e3e;
+    --next-color: #1a56db;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    color: #1a1a1a;
+    padding: 14px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 10px; }
+  header h1 { font-size: 20px; margin: 0 0 2px 0; }
+  header .sub { font-size: 12px; color: #777; margin-bottom: 4px; }
+  header .clock { font-size: 15px; color: #555; font-variant-numeric: tabular-nums; }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  @media (max-width: 560px) { .status-grid { grid-template-columns: 1fr; } }
+  .status-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    border-top: 5px solid var(--now-color);
+  }
+  .status-card.next { border-top-color: var(--next-color); }
+  .status-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #888; font-weight: bold; margin-bottom: 6px;
+  }
+  .status-subject { font-size: 19px; font-weight: bold; margin-bottom: 4px; line-height: 1.25; }
+  .status-detail { font-size: 13px; color: #444; margin-bottom: 2px; }
+  .status-time { font-size: 12px; color: #999; margin-top: 6px; }
+  .group-line { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; }
+  .group-line b { font-weight: bold; }
+  .none-msg { font-size: 14px; color: #777; font-style: italic; }
+
+  h2.shift-title {
+    font-size: 13px; margin: 16px 0 6px 0; padding: 4px 10px;
+    background: #2b2b2b; color: #fff; border-radius: 4px; display: inline-block;
+  }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; margin-bottom: 10px; background: #fff; }
+  th, td { border: 1px solid #ccc; vertical-align: middle; padding: 0; }
+  th { background: #eee; text-align: center; font-size: 10px; padding: 3px 1px; line-height: 1.2; }
+  th .period-time { display:block; font-weight:normal; color:#555; font-size: 8.5px;}
+  td.day-cell { text-align: center; font-size: 14px; font-weight: bold; background: #fafafa; }
+  td.day-cell.today-row { background: #fff3b0; }
+  td.empty-cell { background: #fff; }
+  .cell-content { padding: 3px 4px; font-size: 8px; line-height: 1.25; }
+  .split .cell-content { padding: 0; }
+  .split-half { padding: 2px 4px; }
+  .split-half.bordered { border-top: 1px solid rgba(0,0,0,0.35); }
+  .subj { font-weight: bold; font-size: 8.2px; display:block; }
+  .teacher { font-size: 7.6px; display:block; }
+  .room { font-weight: bold; text-align:right; font-size: 8px; display:block; }
+  .grupa-label { font-weight: bold; font-size: 7.4px; }
+  td.current-cell { outline: 3px solid #1e8e3e; outline-offset: -3px; }
+
+  .legend { font-size: 8px; columns: 3; -webkit-columns: 3; column-gap: 10px; margin: 6px 0 16px 0; }
+  .legend-item { display:flex; align-items:center; gap:4px; margin-bottom:2px; break-inside: avoid; }
+  .swatch { width: 9px; height: 9px; border: 1px solid #999; flex-shrink:0; display:inline-block; }
+
+  footer { text-align: center; font-size: 10.5px; color: #888; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Raspored — 2.a</h1>
+  <div class="sub">Elektrostrojarska škola Varaždin</div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<div class="status-grid">
+  <div class="status-card" id="now-card">
+    <div class="status-label">Sada</div>
+    <div id="now-content"><div class="none-msg">Učitavanje…</div></div>
+  </div>
+  <div class="status-card next" id="next-card">
+    <div class="status-label">Slijedi</div>
+    <div id="next-content"><div class="none-msg">Učitavanje…</div></div>
+  </div>
+</div>
+
+<div id="tables-container"></div>
+
+<footer>Raspored vrijedi za tjedan od 14.9.2026. Ako škola promijeni raspored, javi pa ažuriramo.</footer>
+
+</div>
+
+<script>
+// ---------- PODACI O RASPOREDU (2.a, Elektrostrojarska škola Varaždin) ----------
+const schedule2a = {
+  Po: [
+    {start:'07:20', end:'08:50', subj:'Hrv. jez.', teacher:'Galevski V.', room:'A60'},
+    {start:'08:55', end:'09:40', subj:'TZK', teacher:'Ščapec V.', room:'GSP3'},
+    {start:'09:45', end:'10:30', subj:'SRO', teacher:'Keleminec K.S.', room:'A35'},
+    {start:'10:55', end:'12:30', split:[{grupa:'engleski', subj:'Engl I', teacher:'Keleminec K.S.', room:'A47'}, {grupa:'njemački', subj:'Njem I', teacher:'Đolonga S.', room:'A51'}]},
+    {start:'12:35', end:'13:20', subj:'Povijest', teacher:'Rogulja M.', room:'A47'},
+    {start:'13:20', end:'14:05', subj:'Vjeronauk', teacher:'Kučan M.K.', room:'A47'}
+  ],
+  Ut: [
+    {start:'07:20', end:'08:50', subj:'Sp.vod. i el.inst.', teacher:'Buhin M.', room:'B13'},
+    {start:'08:55', end:'10:30', subj:'Zašt.održ.el.inst.', teacher:'Lukaček Dr.', room:'B04'},
+    {start:'10:55', end:'12:30', subj:'Osn.termodin.', teacher:'Horvat T.', room:'B04'},
+    {start:'12:35', end:'14:05', subj:'Matematika', teacher:'Plantak T.', room:'A41'},
+    {start:'14:10', end:'15:45', subj:'Astr', teacher:'Horvat T.', room:'D16', label:'fakultativno'}
+  ],
+  Sr: [
+    {start:'07:20', end:'08:50', split:[{grupa:'1. Grupa', subj:'Sp.vod. i el.inst.-vj', teacher:'Jurković I.', room:'B12'}, {grupa:'2. Grupa', subj:'Zašt.održ.el.inst.-vj.', teacher:'Lukaček Dr.', room:'B13'}]},
+    {start:'08:55', end:'10:30', split:[{grupa:'1. Grupa', subj:'Zašt.održ.el.inst.-vj.', teacher:'Lukaček Dr.', room:'B12'}, {grupa:'2. Grupa', subj:'Sp.vod. i el.inst.-vj', teacher:'Jurković I.', room:'B13'}]},
+    {start:'10:55', end:'11:40', subj:'TZK', teacher:'Ščapec V.', room:'GSP3'},
+    {start:'11:45', end:'12:30', subj:'Hrv. jez.', teacher:'Galevski V.', room:'A39'},
+    {start:'12:35', end:'14:05', subj:'Izmj.str.krug.', teacher:'Tesla H.T.', room:'A39'}
+  ],
+  Ce: [
+    {start:'07:20', end:'08:50', subj:'Zašt.održ.el.inst.', teacher:'Lukaček Dr.', room:'B13'},
+    {start:'08:55', end:'10:30', subj:'Matematika', teacher:'Plantak T.', room:'A41'},
+    {start:'10:55', end:'11:40', subj:'Sp.vod. i el.inst.', teacher:'Buhin M.', room:'B13'},
+    {start:'11:45', end:'12:30', subj:'Hrv. jez.', teacher:'Galevski V.', room:'A62'},
+    {start:'12:35', end:'14:05', split:[{grupa:'eng II', subj:'Engl II', teacher:'N eng', room:'A50'}, {grupa:'njem II', subj:'Njem II', teacher:'Radoš I.', room:'A39'}, {grupa:'njem II', subj:'DSD2', teacher:'Pintarić T.', room:'C10'}]}
+  ],
+  Pe: [
+    {start:'07:20', end:'08:50', split:[{grupa:'1. Grupa', subj:'Sp.vod. i el.inst.-vj', teacher:'Jurković I.', room:'B12'}, {grupa:'2. Grupa', subj:'Zašt.održ.el.inst.-vj.', teacher:'Lukaček Dr.', room:'B13'}]},
+    {start:'08:55', end:'10:30', split:[{grupa:'1. Grupa', subj:'Zašt.održ.el.inst.-vj.', teacher:'Lukaček Dr.', room:'B12'}, {grupa:'2. Grupa', subj:'Sp.vod. i el.inst.-vj', teacher:'Jurković I.', room:'B13'}]},
+    {start:'10:55', end:'12:30', subj:'Izmj.str.krug.', teacher:'Tesla H.T.', room:'A38'},
+    {start:'12:35', end:'14:05', split:[{grupa:'fakultativno', subj:'Mat - f', teacher:'Smuđ M.', room:'A38'}, {grupa:'fakultativno', subj:'Eksp.fiz.', teacher:'Horvat T.', room:'B04'}]}
+  ]
+};
+
+const subjColors2a = {
+  'Hrv. jez.': 'rgb(255, 224, 224)', 'TZK': 'rgb(208, 224, 255)', 'SRO': 'rgb(208, 255, 255)',
+  'Engl I': 'rgb(208, 255, 255)', 'Njem I': 'rgb(204, 255, 179)', 'Povijest': 'rgb(128, 153, 230)',
+  'Vjeronauk': 'rgb(138, 224, 152)', 'Sp.vod. i el.inst.': 'rgb(192, 255, 171)',
+  'Zašt.održ.el.inst.': 'rgb(230, 255, 255)', 'Osn.termodin.': 'rgb(255, 204, 179)',
+  'Matematika': 'rgb(255, 224, 171)', 'Astr': 'rgb(255, 204, 179)',
+  'Sp.vod. i el.inst.-vj': 'rgb(128, 255, 192)', 'Zašt.održ.el.inst.-vj.': 'rgb(230, 255, 255)',
+  'Izmj.str.krug.': 'rgb(204, 153, 179)', 'Engl II': 'rgb(240, 240, 240)',
+  'Njem II': 'rgb(204, 153, 128)', 'DSD2': 'rgb(192, 171, 255)',
+  'Mat - f': 'rgb(230, 128, 230)', 'Eksp.fiz.': 'rgb(255, 204, 179)'
+};
+
+const periodDefs = [
+  {n:1, start:'07:20', end:'08:00'}, {n:2, start:'08:05', end:'08:50'},
+  {n:3, start:'08:55', end:'09:40'}, {n:4, start:'09:45', end:'10:30'},
+  {n:5, start:'10:55', end:'11:40'}, {n:6, start:'11:45', end:'12:30'},
+  {n:7, start:'12:35', end:'13:20'}, {n:8, start:'13:20', end:'14:05'},
+  {n:9, start:'14:10', end:'14:55'}, {n:10, start:'15:00', end:'15:45'}
+];
+
+const dayOrder = ["Po","Ut","Sr","Ce","Pe"];
+
+function timeToMin(t) { const [h,m] = t.split(":").map(Number); return h*60+m; }
+
+function buildStatusHTML(p, showTime) {
+  if (!p) return null;
+  let html = "";
+  if (p.split) {
+    html += p.split.map(g => `
+      <div class="group-line">
+        <span>${g.grupa ? '<b>'+g.grupa+':</b> ' : ''}${g.subj}<br><span style="color:#888;font-size:11px;">${g.teacher}</span></span>
+        <span style="font-weight:bold;">${g.room}</span>
+      </div>`).join("");
+  } else {
+    html += `<div class="status-subject">${p.subj}${p.label ? ' <span style="font-size:11px;font-weight:normal;color:#888;">('+p.label+')</span>' : ''}</div>
+              <div class="status-detail">${p.teacher} &middot; učionica <b>${p.room}</b></div>`;
+  }
+  if (showTime) html += `<div class="status-time">${p.start} – ${p.end}</div>`;
+  return html;
+}
+
+function updateStatus() {
+  const now = new Date();
+  const clockStr = now.toLocaleTimeString('hr-HR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  document.getElementById('clock').textContent = clockStr + " · " + now.toLocaleDateString('hr-HR', {weekday:'long', day:'numeric', month:'long'});
+
+  const jsDay = now.getDay();
+  const dayMap = {1:"Po",2:"Ut",3:"Sr",4:"Ce",5:"Pe"};
+  const todayKey = dayMap[jsDay];
+  const nowMin = now.getHours()*60 + now.getMinutes();
+
+  const nowContentEl = document.getElementById('now-content');
+  const nextContentEl = document.getElementById('next-content');
+
+  if (!todayKey) {
+    nowContentEl.innerHTML = `<div class="none-msg">Vikend — nema nastave 🎉</div>`;
+    nextContentEl.innerHTML = `<div class="none-msg">Nastava počinje u ponedjeljak</div>`;
+    highlightToday(null, -1);
+    return;
+  }
+
+  const periods = schedule2a[todayKey] || [];
+  let current = null, next = null, currentIdx = -1;
+  for (let i=0; i<periods.length; i++) {
+    const p = periods[i];
+    const s = timeToMin(p.start), e = timeToMin(p.end);
+    if (nowMin >= s && nowMin < e) { current = p; currentIdx = i; }
+    if (nowMin < s && !next) { next = p; }
+  }
+
+  nowContentEl.innerHTML = current ? buildStatusHTML(current, true) : `<div class="none-msg">Trenutno nema nastave (pauza)</div>`;
+  nextContentEl.innerHTML = next ? buildStatusHTML(next, true) : `<div class="none-msg">${current ? 'Ovo je zadnji sat danas' : 'Nema više nastave danas'}</div>`;
+
+  highlightToday(todayKey, currentIdx);
+}
+
+function highlightToday(todayKey, currentIdx) {
+  document.querySelectorAll('td.day-cell').forEach(el => el.classList.remove('today-row'));
+  document.querySelectorAll('td.current-cell').forEach(el => el.classList.remove('current-cell'));
+  if (!todayKey) return;
+  const dayCell = document.querySelector(`td.day-cell[data-day="${todayKey}"]`);
+  if (dayCell) dayCell.classList.add('today-row');
+  if (currentIdx >= 0) {
+    const periodCell = document.querySelector(`td[data-day="${todayKey}"][data-idx="${currentIdx}"]`);
+    if (periodCell) periodCell.classList.add('current-cell');
+  }
+}
+
+function cellHTML(p, day, idx) {
+  const attrs = `data-day="${day}" data-idx="${idx}"`;
+  if (p.split) {
+    return `<td ${attrs} class="split"><div class="cell-content">` +
+      p.split.map((g,i) => `<div class="split-half ${i>0?'bordered':''}" style="background:${subjColors2a[g.subj]||'#fff'}">${g.grupa?'<span class="grupa-label">'+g.grupa+'</span> ':''}<span class="subj">${g.subj}</span><span class="teacher">${g.teacher}</span><span class="room">${g.room}</span></div>`).join("") +
+      `</div></td>`;
+  }
+  return `<td ${attrs} style="background:${subjColors2a[p.subj]||'#fff'}"><div class="cell-content">
+      <span class="subj">${p.subj}${p.label?' <span style="font-weight:normal;font-size:6.8px;color:#555;">('+p.label+')</span>':''}</span><span class="teacher">${p.teacher}</span><span class="room">${p.room}</span>
+    </div></td>`;
+}
+
+function renderTable() {
+  let html = `<h2 class="shift-title">Tjedni raspored — 2.a</h2><table><thead><tr><th></th>`;
+  periodDefs.forEach(pd => { html += `<th>${pd.n}.<span class="period-time">${pd.start}-${pd.end}</span></th>`; });
+  html += `</tr></thead><tbody>`;
+
+  dayOrder.forEach(d => {
+    html += `<tr><td class="day-cell" data-day="${d}">${d}</td>`;
+    const periods = schedule2a[d];
+    let periodPtr = 0; // index into periodDefs
+    periods.forEach((p, idx) => {
+      // skip any empty periodDefs slots before this entry's start
+      while (periodPtr < periodDefs.length && periodDefs[periodPtr].start !== p.start) {
+        html += `<td class="empty-cell"></td>`;
+        periodPtr++;
+      }
+      const startIdx = periodPtr;
+      let endIdx = startIdx;
+      while (endIdx < periodDefs.length && periodDefs[endIdx].end !== p.end) endIdx++;
+      const span = endIdx - startIdx + 1;
+      let cell = cellHTML(p, d, idx);
+      if (span > 1) cell = cell.replace('<td ', `<td colspan="${span}" `);
+      html += cell;
+      periodPtr = endIdx + 1;
+    });
+    while (periodPtr < periodDefs.length) { html += `<td class="empty-cell"></td>`; periodPtr++; }
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+
+  // legenda
+  const seen = new Set();
+  html += `<div class="legend">`;
+  dayOrder.forEach(d => schedule2a[d].forEach(p => {
+    const list = p.split ? p.split : [p];
+    list.forEach(g => {
+      if (!seen.has(g.subj)) {
+        seen.add(g.subj);
+        html += `<div class="legend-item"><span class="swatch" style="background:${subjColors2a[g.subj]||'#fff'}"></span>${g.subj}</div>`;
+      }
+    });
+  }));
+  html += `</div>`;
+
+  document.getElementById('tables-container').innerHTML = html;
+}
+
+// init
+renderTable();
+updateStatus();
+setInterval(updateStatus, 15000);
+setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleTimeString('hr-HR'); }, 1000);
+</script>
+</body>
+</html>
